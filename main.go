@@ -15,7 +15,7 @@ import (
 )
 
 // Max retries for failed pushes
-const maxRetries = 5
+const maxRetries = 50
 
 // PushDelay is used for exponential backoff
 const pushDelay = 2 * time.Second
