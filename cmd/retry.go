@@ -34,6 +34,9 @@ func main() {
 	tc := oauth2.NewClient(ctx, ts)
 	client := github.NewClient(tc)
 
+	// Record the start time
+	startTime := time.Now()
+
 	// WaitGroup to wait for all pushes to complete
 	var wg sync.WaitGroup
 
@@ -57,7 +60,10 @@ func main() {
 	// Wait for all goroutines to complete
 	wg.Wait()
 
-	fmt.Println("All pushes to main branch are done!")
+	totalTime := time.Since(startTime)
+
+	// Print total time
+	fmt.Printf("All pushes to main branch are done! Total time: %v\n", totalTime)
 }
 
 // Function to push with retry logic
