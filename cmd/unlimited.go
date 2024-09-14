@@ -14,17 +14,17 @@ import (
 	"golang.org/x/oauth2"
 )
 
-// Max retries for failed pushes
-const maxRetries = 50
-
-// PushDelay is used for exponential backoff
-const pushDelay = 2 * time.Second
+// PushDelayMin and PushDelayMax set the min and max delay for retries (50ms to 5s)
+const (
+	pushDelayMin = 50 * time.Millisecond
+	pushDelayMax = 5 * time.Second
+)
 
 func main() {
 	// GitHub repository details
-	owner := "isindir"
-	repo := "poc"
-	branch := "master"
+	owner := "your-github-username"
+	repo := "your-repository-name"
+	branch := "main"
 
 	// OAuth Token from the environment
 	ctx := context.Background()
@@ -34,10 +34,13 @@ func main() {
 	tc := oauth2.NewClient(ctx, ts)
 	client := github.NewClient(tc)
 
+	// Record the start time
+	startTime := time.Now()
+
 	// WaitGroup to wait for all pushes to complete
 	var wg sync.WaitGroup
 
-	// Loop to launch 100 concurrent pushes
+	// Loop to launch 200 concurrent pushes
 	for i := 0; i < 200; i++ {
 		wg.Add(1)
 		go func(i int) {
@@ -49,37 +52,47 @@ func main() {
 
 			commitMessage := fmt.Sprintf("Adding file %d with UUID %s", i, fileID)
 
-			// Attempt to push with retries
-			pushWithRetry(ctx, client, owner, repo, branch, filePath, content, commitMessage)
+			// Keep trying until the push succeeds
+			pushUntilSuccess(ctx, client, owner, repo, branch, filePath, content, commitMessage)
 		}(i)
 	}
 
 	// Wait for all goroutines to complete
 	wg.Wait()
 
-	fmt.Println("All pushes to main branch are done!")
+	// Calculate the total time elapsed
+	totalTime := time.Since(startTime)
+
+	// Print total time
+	fmt.Printf("All pushes to main branch are done! Total time: %v\n", totalTime)
 }
 
-// Function to push with retry logic
-func pushWithRetry(ctx context.Context, client *github.Client, owner, repo, branch, filePath, content, commitMessage string) {
-	var err error
-	for retries := 0; retries < maxRetries; retries++ {
-		if retries > 0 {
-			//fmt.Printf("Retrying push for file %s (attempt %d)...\n", filePath, retries+1)
-			time.Sleep(pushDelay * time.Duration(rand.Intn(retries+1)))
-		}
-
+// Function that pushes until successful
+func pushUntilSuccess(ctx context.Context, client *github.Client, owner, repo, branch, filePath, content, commitMessage string) {
+	for {
 		// Perform the push
-		err = pushToMainBranch(ctx, client, owner, repo, branch, filePath, content, commitMessage)
+		err := pushToMainBranch(ctx, client, owner, repo, branch, filePath, content, commitMessage)
+
 		if err == nil {
 			fmt.Printf("Successfully pushed file %s to the main branch!\n", filePath)
 			return
 		}
 
-		log.Printf("Error pushing file %s: %v", filePath, err)
-	}
+		// Check if the error is due to throttling (rate limit)
+		if rateLimitErr, ok := err.(*github.RateLimitError); ok {
+			resetTime := time.Until(rateLimitErr.Rate.Reset.Time)
+			fmt.Printf("Rate limit exceeded. Waiting for %v before retrying...\n", resetTime)
+			time.Sleep(resetTime)
+			continue
+		}
 
-	log.Fatalf("Failed to push file %s after %d attempts", filePath, maxRetries)
+		// Handle any other error and retry
+		log.Printf("Error pushing file %s: %v. Retrying...", filePath, err)
+
+		// Randomized delay between 50ms and 5s before retrying
+		delay := time.Duration(rand.Int63n(int64(pushDelayMax-pushDelayMin))) + pushDelayMin
+		time.Sleep(delay)
+	}
 }
 
 // Function to push a single file to the main branch
