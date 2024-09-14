@@ -22,9 +22,9 @@ const (
 
 func main() {
 	// GitHub repository details
-	owner := "your-github-username"
-	repo := "your-repository-name"
-	branch := "main"
+	owner := "isindir"
+	repo := "poc"
+	branch := "master"
 
 	// OAuth Token from the environment
 	ctx := context.Background()
