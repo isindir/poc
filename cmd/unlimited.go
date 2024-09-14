@@ -16,7 +16,7 @@ import (
 
 // PushDelayMin and PushDelayMax set the min and max delay for retries (50ms to 5s)
 const (
-	pushDelayMin = 50 * time.Millisecond
+	pushDelayMin = 2 * time.Second
 	pushDelayMax = 5 * time.Second
 )
 
